@@ -154,7 +154,27 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
             labels = labels[labels>0]
             sio.savemat("{prefix}.rois_label.mat".format(prefix=fmri_preprocessed[:-7]),{'ROILabels':labels})
 
-def relate_scans(fmri_collection, t1_collection, t1_template):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def relate_scans(fmri_collection, t1_collection, t1_template, t1_template_mask):
     directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1],'/reg/'])
     directory = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1]])
     number_of_nrr = 10
@@ -178,6 +198,10 @@ def relate_scans(fmri_collection, t1_collection, t1_template):
         cmd = ''.join(['reg_tools -chgres 3 3 3 -in ', directory_reg, 'nrr_{number_of_nrr}'.format(number_of_nrr=number_of_nrr), '/', 'average_nonrigid_it_{number_of_nrr}.nii.gz'.format(number_of_nrr=number_of_nrr), ' -out ', directory_reg, '/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz'.format(number_of_nrr=number_of_nrr)])
         call(cmd, shell=True)
 
+        # downsample template mask
+        cmd = ''.join(['reg_tools -chgres 3 3 3 -in ',t1_template_mask,' -out ', directory_reg, '/average_nonrigid_it_{number_of_nrr}_fmri_mask.nii.gz'.format(number_of_nrr=number_of_nrr)])
+        call(cmd, shell=True)
+
     # (iiii) build final registration
     # reg_transform -ref $group_avg -ref2 $anat_img -comp ${PP_DIR}/fmri2anat.txt ${PP_DIR}/anat2group.nii.gz ${PP_DIR}/fmri2group.nii.gz
     for index, fmri_scan in enumerate(fmri_collection):
@@ -194,6 +218,20 @@ def relate_scans(fmri_collection, t1_collection, t1_template):
             call(cmd, shell=True)
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 parser = argparse.ArgumentParser(description='fMRI preprocessing and analysis')
 parser.add_argument('-fmri', metavar='fmri', type=str, nargs='+', required=True)
 parser.add_argument('-t1', metavar='t1', type=str, nargs='+', required=False)
@@ -202,6 +240,7 @@ parser.add_argument('-atlas', metavar='atlas', type=str, nargs='+', required=Fal
 args = parser.parse_args()
 
 t1_template = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain.nii.gz', shell=True).rstrip()
+t1_template_mask = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain_mask.nii.gz', shell=True).rstrip()
 
 fmri(args.fmri, args.t1, args.seg, args.atlas)
-relate_scans(args.fmri, args.t1, t1_template)
+relate_scans(args.fmri, args.t1, t1_template, t1_template_mask)
