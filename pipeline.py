@@ -12,9 +12,10 @@ import numpy as np
 ################################################## NOTES ##################################
 # - use 3drefit -TR to set TR in header if not correctly set
 ###########################################################################################
-def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collections=None):
-    directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1],'/reg/'])
-    call("mkdir -p {directory_reg}".format(directory_reg=directory_reg), shell=True)
+def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collections=None, directory_reg=None):
+    if directory_reg:
+        call("mkdir -p {directory_reg}".format(directory_reg=directory_reg), shell=True)
+
     for index, fmri_scan in enumerate(fmri_collection):
         id_start = fmri_scan.rfind('/') + 1
         id_end = fmri_scan.find('.')
@@ -55,13 +56,17 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         seg = args.seg[index]
         atlas = args.atlas[index]
         fvol = out_3dvol
-        aff_t1_2_fmri = "{directory_reg}{fmri_id}.t1__2__{fmri_id}.fmri.despike.volreg.vol4.txt".format(fmri_id=identifier, directory_reg=directory_reg)
-        aff_fmri_2_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt".format(fmri_id=identifier, directory_reg=directory_reg)
-        aff_t1_in_fmri ="{directory_reg}{fmri_id}.t1__in__{fmri_id}.fmri.despike.volreg.vol4.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
-        aff_fmri_in_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__in__{fmri_id}.t1.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
+        if t1_collection:
+            aff_t1_2_fmri = "{directory_reg}{fmri_id}.t1__2__{fmri_id}.fmri.despike.volreg.vol4.txt".format(fmri_id=identifier, directory_reg=directory_reg)
+            aff_fmri_2_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt".format(fmri_id=identifier, directory_reg=directory_reg)
+            aff_t1_in_fmri ="{directory_reg}{fmri_id}.t1__in__{fmri_id}.fmri.despike.volreg.vol4.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
+            aff_fmri_in_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__in__{fmri_id}.t1.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
 
-        fmri_seg = "{directory}{fmri_id}.fmri.despike.volreg.vol4.seg.nii.gz".format(directory=directory, fmri_id=identifier)
-        fmri_atlas = "{directory}{fmri_id}.fmri.despike.volreg.vol4.atlas.nii.gz".format(directory=directory, fmri_id=identifier)
+        if seg_collections and atlas_collections:
+            fmri_seg = "{directory}{fmri_id}.fmri.despike.volreg.vol4.seg.nii.gz".format(directory=directory, fmri_id=identifier)
+            fmri_atlas = "{directory}{fmri_id}.fmri.despike.volreg.vol4.atlas.nii.gz".format(directory=directory, fmri_id=identifier)
+
+
         ##########################################################################################################
         ################################# FMRI PREPROCESSING #####################################################
         ##########################################################################################################
@@ -174,8 +179,7 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
 
 
 
-def relate_scans(fmri_collection, t1_collection, t1_template, t1_template_mask):
-    directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1],'/reg/'])
+def relate_scans(fmri_collection, t1_collection, t1_template, t1_template_mask, directory_reg):
     directory = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1]])
     number_of_nrr = 10
     number_of_aff = 10
@@ -237,10 +241,11 @@ parser.add_argument('-fmri', metavar='fmri', type=str, nargs='+', required=True)
 parser.add_argument('-t1', metavar='t1', type=str, nargs='+', required=False)
 parser.add_argument('-seg', metavar='seg', type=str, nargs='+', required=False)
 parser.add_argument('-atlas', metavar='atlas', type=str, nargs='+', required=False)
+parser.add_argument('-reg_dir', metavar='reg_dir', type=str, required=False)
 args = parser.parse_args()
 
 t1_template = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain.nii.gz', shell=True).rstrip()
 t1_template_mask = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain_mask.nii.gz', shell=True).rstrip()
 
-fmri(args.fmri, args.t1, args.seg, args.atlas)
-relate_scans(args.fmri, args.t1, t1_template, t1_template_mask)
+fmri(args.fmri, args.t1, args.seg, args.atlas, args.reg_dir)
+relate_scans(args.fmri, args.t1, t1_template, t1_template_mask, args.reg_dir)
