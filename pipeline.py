@@ -12,7 +12,7 @@ import numpy as np
 ################################################## NOTES ##################################
 # - use 3drefit -TR to set TR in header if not correctly set
 ###########################################################################################
-def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collections=None, directory_reg=None):
+def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collections=None, directory_reg=None, freq_band="0.01 0.1"):
     if directory_reg:
         call("mkdir -p {directory_reg}".format(directory_reg=directory_reg), shell=True)
 
@@ -52,17 +52,17 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         ### final output
         fmri_preprocessed = out_3dDeconvolve_err
 
-        t1 = args.t1[index]
-        seg = args.seg[index]
-        atlas = args.atlas[index]
         fvol = out_3dvol
         if t1_collection:
+            t1 = args.t1[index]
             aff_t1_2_fmri = "{directory_reg}{fmri_id}.t1__2__{fmri_id}.fmri.despike.volreg.vol4.txt".format(fmri_id=identifier, directory_reg=directory_reg)
             aff_fmri_2_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt".format(fmri_id=identifier, directory_reg=directory_reg)
             aff_t1_in_fmri ="{directory_reg}{fmri_id}.t1__in__{fmri_id}.fmri.despike.volreg.vol4.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
             aff_fmri_in_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__in__{fmri_id}.t1.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
 
         if seg_collections and atlas_collections:
+            seg = args.seg[index]
+            atlas = args.atlas[index]
             fmri_seg = "{directory}{fmri_id}.fmri.despike.volreg.vol4.seg.nii.gz".format(directory=directory, fmri_id=identifier)
             fmri_atlas = "{directory}{fmri_id}.fmri.despike.volreg.vol4.atlas.nii.gz".format(directory=directory, fmri_id=identifier)
 
@@ -96,7 +96,7 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         # band passs filter signals
         if not isfile(out_3dBandpass_regressors):
             #cmd = "3dBandpass -overwrite -band 0.01 0.1 -prefix {out_} {in_}".format(in_=in_3dBandpass, out_=out_3dBandpass)
-            cmd = "1dBport -nodata {VOLUMES} {TR} -band 0.01 0.1 -invert -nozero > {out_}".format(VOLUMES=VOLUMES, TR=TR, out_=out_3dBandpass_regressors)
+            cmd = "1dBport -nodata {VOLUMES} {TR} -band {band} -invert -nozero > {out_}".format(VOLUMES=VOLUMES, TR=TR, out_=out_3dBandpass_regressors, band=freq_band)
             print cmd
             call(cmd, shell=True)
 
@@ -183,6 +183,8 @@ def relate_scans(fmri_collection, t1_collection, t1_template, t1_template_mask, 
     directory = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1]])
     number_of_nrr = 10
     number_of_aff = 10
+    if not t1_collection:
+        return
     #(iii) create parameter file for group registration and start group registration
     if not isfile(''.join([directory_reg,'groupwise_niftyreg_params.sh'])):
         f = open(''.join([directory_reg,'groupwise_niftyreg_params.sh']),'w')
@@ -242,10 +244,11 @@ parser.add_argument('-t1', metavar='t1', type=str, nargs='+', required=False)
 parser.add_argument('-seg', metavar='seg', type=str, nargs='+', required=False)
 parser.add_argument('-atlas', metavar='atlas', type=str, nargs='+', required=False)
 parser.add_argument('-reg_dir', metavar='reg_dir', type=str, required=False)
+parser.add_argument('-freq_band', metavar='freq_band', type=str, required=False)
 args = parser.parse_args()
 
 t1_template = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain.nii.gz', shell=True).rstrip()
 t1_template_mask = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain_mask.nii.gz', shell=True).rstrip()
 
-fmri(args.fmri, args.t1, args.seg, args.atlas, args.reg_dir)
+fmri(args.fmri, args.t1, args.seg, args.atlas, args.reg_dir,args.freq_band)
 relate_scans(args.fmri, args.t1, t1_template, t1_template_mask, args.reg_dir)
