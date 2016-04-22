@@ -40,6 +40,10 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         ### 3dvol to extract 4th volume
         in_3dvol = out_3dvolreg
         out_3dvol = "{prefix}.vol4.nii.gz".format(prefix=in_3dvol[:-7])
+        ### fmri brain mask
+        in_3dAutomask = out_3dvolreg
+        out_3dAutomask = "{prefix}.mask.nii.gz".format(prefix=out_3dvol[:-7])
+
         ### 3dBandpass
         in_3dBandpass = out_3dvolreg
         out_3dBandpass = "{prefix}.band.nii.gz".format(prefix=in_3dBandpass[:-7])
@@ -93,6 +97,11 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
             cmd = "3dcalc -overwrite -a '{in_}[4]' -prefix {out_} -expr a".format(in_=in_3dvol, out_=out_3dvol)
             call(cmd, shell=True)
 
+        # get brain mask for volume
+        if not isfile(out_3dAutomask):
+            cmd = "3dAutomask -overwrite -prefix {out_} {in_}".format(in_=in_3dAutomask, out_=out_3dAutomask)
+            call(cmd, shell=True)
+
         # band passs filter signals
         if not isfile(out_3dBandpass_regressors):
             #cmd = "3dBandpass -overwrite -band 0.01 0.1 -prefix {out_} {in_}".format(in_=in_3dBandpass, out_=out_3dBandpass)
@@ -126,14 +135,14 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         ################################################### AFFINE REGISTRATIONS ################################################################
         #########################################################################################################################################
         #(i) fmri to t1
-        if t1_collection and not isfile(aff_fmri_in_t1):
-            cmd = "reg_aladin -ref {ref} -flo {flo} -noSym -res {res} -aff {aff}".format(ref=t1, flo=fvol, res=aff_fmri_in_t1, aff=aff_fmri_2_t1)
+        if t1_collection and atlas_collections and not isfile(aff_fmri_in_t1):
+            cmd = "reg_aladin -ref {ref} -rmask {rmask} -flo {flo} -fmask {fmask} -res {res} -aff {aff}".format(ref=t1, flo=fvol, res=aff_fmri_in_t1, aff=aff_fmri_2_t1, rmask=atlas, fmask=out_3dAutomask)
             print cmd
             call(cmd, shell=True)
 
         #(ii) t1 to fmri
-        if t1_collection and not isfile(aff_t1_in_fmri):
-            cmd = "reg_aladin -ref {ref} -flo {flo} -noSym -res {res} -aff {aff}".format(ref=fvol, flo=t1, res=aff_t1_in_fmri, aff=aff_t1_2_fmri)
+        if t1_collection and atlas_collections and not isfile(aff_t1_in_fmri):
+            cmd = "reg_aladin -ref {ref} -rmask {rmask} -flo {flo} -fmask {fmask} -res {res} -aff {aff}".format(ref=fvol, flo=t1, res=aff_t1_in_fmri, aff=aff_t1_2_fmri, fmask=atlas, rmask=out_3dAutomask)
             print cmd
             call(cmd, shell=True)
 

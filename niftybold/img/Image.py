@@ -13,7 +13,7 @@ class Image(object):
         self._img_filename = img_filename
         self._image_hd = nib.load(img_filename)
         if fwhm>0:
-            self._image_hd = processing.smooth_image(self._image_hd,fwhm)
+            self._image_hd = processing.smooth_image(self._image_hd, fwhm)
 
         self._mask_hd = nib.load(mask_filename)
         self._mask_volume = self._mask_hd.get_data()
