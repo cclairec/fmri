@@ -8,4 +8,5 @@ setup(name='niftybold',
       author_email='michael.hutel.13@ucl.ac.uk',
       license='MIT',
       packages=find_packages(),
+      install_requires=["numpy","scipy","sklearn","nibabel","nilearn","xlwt"],
       zip_safe=False)
