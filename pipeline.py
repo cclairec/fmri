@@ -2,12 +2,13 @@ from niftybold.decomposition.Autoencoder import Autoencoder
 from niftybold.decomposition.RICA import RICA
 from niftybold.decomposition.InfoMax import InfoMax
 from niftybold.img.Image import Image
-
+from niftybold.tools.atlas import atlas
 import argparse
 import scipy.io as sio
 from subprocess import call,check_output
 from os.path import isfile
 import numpy as np
+import xlwt
 
 ################################################## NOTES ##################################
 # - use 3drefit -TR to set TR in header if not correctly set
@@ -132,27 +133,48 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
             print cmd
             call(cmd, shell=True)
 
-        # resample seg in fmri space
+        # resample seg (5 tissue classes) in fmri space
         if seg_collections and not isfile(fmri_seg):
             cmd = "reg_resample -ref {ref} -flo {flo} -psf -res {res} -trans {trans}".format(ref=fvol, flo=seg, res=fmri_seg, trans=aff_t1_2_fmri)
             print cmd
             call(cmd, shell=True)
 
-        # resample atlas in fmri space
+        # resample atlas (parcellations) in fmri space
         if atlas_collections and not isfile(fmri_atlas):
             cmd = "reg_resample -ref {ref} -flo {flo} -inter 0 -res {res} -trans {trans}".format(ref=fvol, flo=atlas, res=fmri_atlas, trans=aff_t1_2_fmri)
             print cmd
             call(cmd, shell=True)
             # build atlas based correlation matrices
+            ventricles_csf = [1, 5, 12, 16, 50, 51]
+            exterior_lesions = [43, 44, 54, 55, 64, 65, 70]
+            cerebellum = [72, 73, 74] # exclude for Genfi DF1
+            atlas_exclusion_list = ventricles_csf+exterior_lesions+cerebellum
             img = Image(img_filename=fmri_preprocessed,
                         mask_filename=fmri_atlas,
                         atlas_filename=fmri_atlas,
-                        atlas_thr=1)
+                        atlas_thr=1,
+                        atlas_exclsion=atlas_exclusion_list)
             sio.savemat("{prefix}.corr.mat".format(prefix=fmri_preprocessed[:-7]),{'CorrMatrix':img.atlas_corr})
             sio.savemat("{prefix}.rois.mat".format(prefix=fmri_preprocessed[:-7]),{'ROISignals':img.image_mat_in_mask_normalised_atlas})
+            # adding xls file for brain areas kept, for graphVar use.
+            book = xlwt.Workbook()
+            sh = book.add_sheet("sheet1")
+            n = 0
+            for label, name in atlas.items():
+                if label in atlas_exclusion_list:
+                    sh.write(n, 0, 0)
+                else:
+                    sh.write(n, 0, 1)
+
+                sh.write(n, 1, label)
+                sh.write(n, 2, name)
+                n = n+1
+
+            book.save(fmri_preprocessed[:-7]+"BrainRegions.xls")
+
             labels = np.unique(img.atlas_v)
             labels = labels[labels>0]
-            sio.savemat("{prefix}.rois_label.mat".format(prefix=fmri_preprocessed[:-7]),{'ROILabels':labels})
+            sio.savemat("{prefix}.rois_label.mat".format(prefix=fmri_preprocessed[:-7]), {'ROILabels':labels})
 
 def relate_scans(fmri_collection, t1_collection, t1_template):
     directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1],'/reg/'])
