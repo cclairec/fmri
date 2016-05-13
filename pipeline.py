@@ -40,29 +40,35 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         ### 3dvol to extract 4th volume
         in_3dvol = out_3dvolreg
         out_3dvol = "{prefix}.vol4.nii.gz".format(prefix=in_3dvol[:-7])
-        ### 3dBandpass
+        # 3dBandpass
         in_3dBandpass = out_3dvolreg
         out_3dBandpass = "{prefix}.band.nii.gz".format(prefix=in_3dBandpass[:-7])
         out_3dBandpass_regressors = "{directory}{fmri_id}.bandpass.1D".format(fmri_id=identifier, directory=directory)
-        ### 3dDeconvolve
+        # 3dDeconvolve
         in_3dDeconvolve = out_3dvolreg
         out_3dDeconvolve_err = "{prefix}.deconvolve.err.nii.gz".format(prefix=in_3dDeconvolve[:-7])
         out_3dDeconvolve_fit = "{prefix}.deconvolve.fit.nii.gz".format(prefix=in_3dDeconvolve[:-7])
         out_3dDeconvolve_stats = "{prefix}.deconvolve.stats.nii.gz".format(prefix=in_3dDeconvolve[:-7])
-        ### final output
+        # final output
         fmri_preprocessed = out_3dDeconvolve_err
 
         t1 = args.t1[index]
         seg = args.seg[index]
-        atlas = args.atlas[index]
+        parcellation = args.atlas[index]
         fvol = out_3dvol
-        aff_t1_2_fmri = "{directory_reg}{fmri_id}.t1__2__{fmri_id}.fmri.despike.volreg.vol4.txt".format(fmri_id=identifier, directory_reg=directory_reg)
-        aff_fmri_2_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt".format(fmri_id=identifier, directory_reg=directory_reg)
-        aff_t1_in_fmri ="{directory_reg}{fmri_id}.t1__in__{fmri_id}.fmri.despike.volreg.vol4.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
-        aff_fmri_in_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__in__{fmri_id}.t1.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
+        aff_t1_2_fmri = "{directory_reg}{fmri_id}.t1__2__{fmri_id}.fmri.despike.volreg.vol4.txt".format(
+            fmri_id=identifier, directory_reg=directory_reg)
+        aff_fmri_2_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt".format(
+            fmri_id=identifier, directory_reg=directory_reg)
+        aff_t1_in_fmri ="{directory_reg}{fmri_id}.t1__in__{fmri_id}.fmri.despike.volreg.vol4.nii.gz".format(
+            fmri_id=identifier, directory_reg=directory_reg)
+        aff_fmri_in_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__in__{fmri_id}.t1.nii.gz".format(
+            fmri_id=identifier, directory_reg=directory_reg)
 
-        fmri_seg = "{directory}{fmri_id}.fmri.despike.volreg.vol4.seg.nii.gz".format(directory=directory, fmri_id=identifier)
-        fmri_atlas = "{directory}{fmri_id}.fmri.despike.volreg.vol4.atlas.nii.gz".format(directory=directory, fmri_id=identifier)
+        fmri_seg = "{directory}{fmri_id}.fmri.despike.volreg.vol4.seg.nii.gz".format(
+            directory=directory, fmri_id=identifier)
+        fmri_atlas = "{directory}{fmri_id}.fmri.despike.volreg.vol4.atlas.nii.gz".format(
+            directory=directory, fmri_id=identifier)
         ##########################################################################################################
         ################################# FMRI PREPROCESSING #####################################################
         ##########################################################################################################
@@ -141,7 +147,7 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
 
         # resample atlas (parcellations) in fmri space
         if atlas_collections and not isfile(fmri_atlas):
-            cmd = "reg_resample -ref {ref} -flo {flo} -inter 0 -res {res} -trans {trans}".format(ref=fvol, flo=atlas, res=fmri_atlas, trans=aff_t1_2_fmri)
+            cmd = "reg_resample -ref {ref} -flo {flo} -inter 0 -res {res} -trans {trans}".format(ref=fvol, flo=parcellation, res=fmri_atlas, trans=aff_t1_2_fmri)
             print cmd
             call(cmd, shell=True)
             # build atlas based correlation matrices
@@ -176,8 +182,9 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
             labels = labels[labels>0]
             sio.savemat("{prefix}.rois_label.mat".format(prefix=fmri_preprocessed[:-7]), {'ROILabels':labels})
 
+
 def relate_scans(fmri_collection, t1_collection, t1_template):
-    directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1],'/reg/'])
+    directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1], 'reg'])
     directory = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1]])
     number_of_nrr = 10
     number_of_aff = 10
@@ -185,9 +192,9 @@ def relate_scans(fmri_collection, t1_collection, t1_template):
     if not isfile(''.join([directory_reg,'groupwise_niftyreg_params.sh'])):
         f = open(''.join([directory_reg,'groupwise_niftyreg_params.sh']),'w')
         f.write('#!/bin/sh\n')
-        f.write(''.join(['export IMG_INPUT=(`ls ', directory, '*.t1.nii*`)','\n']))
-        f.write(''.join(['export TEMPLATE=',t1_template,'\n']))
-        f.write(''.join(['export RES_FOLDER=',directory_reg,'\n']))
+        f.write(''.join(['export IMG_INPUT=(`ls ', directory, '*.t1.nii*`)', '\n']))
+        f.write(''.join(['export TEMPLATE=', t1_template,'\n']))
+        f.write(''.join(['export RES_FOLDER=', directory_reg, '\n']))
         f.write('export AFFINE_args=""\n')
         f.write('export NRR_args=""\n')
         f.write('export AFF_IT_NUM={number_of_aff}\n'.format(number_of_aff=number_of_aff))
