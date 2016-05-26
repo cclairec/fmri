@@ -13,16 +13,17 @@ parser = argparse.ArgumentParser(description='matrix decomposition')
 parser.add_argument('-mat', metavar='mat', type=str, nargs='+', required=True)
 parser.add_argument('-ican', metavar='ican', type=int, default=30)
 parser.add_argument('-maxiter', metavar='maxiter', type=int, default=400)
-parser.add_argument('-pca', metavar='pca', type=bool, default=False)
-parser.add_argument('-rica', metavar='rica', type=bool, default=False)
 parser.add_argument('-autoencoder', metavar='autoencoder', type=bool, default=False)
-parser.add_argument('-fastica', metavar='fastica', type=bool, default=False)
-
+parser.add_argument('-prefix', metavar='prefix', type=str, default=None)
 args = parser.parse_args()
 
 for i,f in enumerate(args.mat):
     print f
-    prefix = f[0:f.find('.mat')]
+    if args.prefix:
+        prefix = args.prefix
+    else:
+        prefix = f[0:f.find('.mat')]
+        
     f = sio.loadmat(f)
     if i == 0:
         if 'mat' in f.keys():
@@ -64,32 +65,33 @@ for i,f in enumerate(args.mat):
 #         else:
 #             return fast_dot(X, self.components_) + self.mean_
 
-if args.pca:
-    pca = PCA(whiten=True, n_components='mle')
-    h = pca.fit_transform(mat.T)
-    sio.savemat("{prefix}.pca.mat".format(prefix=prefix), {'h':h.T, 'W':pca.components_, 'mean': pca.mean_, 'variance_explained': pca.explained_variance_}) # although it's the other way around
+
+pca = PCA(whiten=True, n_components='mle')
+#pca = PCA(whiten=True, n_components=args.ican)
+h = pca.fit_transform(mat.T)
+sio.savemat("{prefix}.pca.mat".format(prefix=prefix), {'h':h.T, 'W':pca.components_, 'mean': pca.mean_, 'variance_explained': pca.explained_variance_}) # although it's the other way around
+
 ####################################################################################
 ################################## Spatial Autoencoder #############################
 ####################################################################################
 if args.autoencoder:
-    autoencoder = Autoencoder(args.ican, max_iter=args.maxiter, second_nonlinear=False, sparsity_param=0.3).fit(mat)
+    autoencoder = Autoencoder(args.ican, max_iter=args.maxiter, second_nonlinear=True, sparsity_param=0.3).fit(mat)
     sio.savemat("{prefix}.autoencoder.mat".format(prefix=prefix), {'h':autoencoder.h,'W1':autoencoder.W1,'W2':autoencoder.W2,'b1':autoencoder.b1, 'b2':autoencoder.b2})
 #import pdb; pdb.set_trace()
 ###################################################################################
 ################################## Reconstruction ICA #############################
 ###################################################################################
-if args.rica:
-    rica = RICA(args.ican, max_iter=args.maxiter, penalty=0.05).fit(mat)
-    sio.savemat("{prefix}.rica.mat".format(prefix=prefix), {'h':rica.h,'W':rica.W})
+rica = RICA(args.ican, max_iter=args.maxiter, penalty=0.05).fit(h.T)
+sio.savemat("{prefix}.rica.mat".format(prefix=prefix), {'h':rica.h,'W':rica.W})
 ###################################################################################
 #################################### FastICA ######################################
 ###################################################################################
-if args.fastica:
-    ica = FastICA(n_components=args.ican, whiten=True)
-    S_ = ica.fit_transform(mat.T)  # Reconstruct signals
-    A_ = ica.mixing_  # Get estimated mixing matrix
-    A_inv = pinv(A_)
-    sio.savemat("{prefix}.ica.mat".format(prefix=prefix), {'h':S_.T,'W':A_,'W_inv':A_inv})
+
+ica = FastICA(n_components=args.ican, whiten=False)
+S_ = ica.fit_transform(h)  # Reconstruct signals
+A_ = ica.mixing_  # Get estimated mixing matrix
+A_inv = pinv(A_)
+sio.savemat("{prefix}.ica.mat".format(prefix=prefix), {'h':S_.T,'W':A_,'W_inv':A_inv})
 
 # S_norm = S_
 # for i in xrange(S_.shape[1]):

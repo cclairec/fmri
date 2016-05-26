@@ -8,6 +8,7 @@ import scipy.io as sio
 from subprocess import call,check_output
 from os.path import isfile
 import numpy as np
+import sys
 
 ################################################## NOTES ##################################
 # - use 3drefit -TR to set TR in header if not correctly set
@@ -57,16 +58,20 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         fmri_preprocessed = out_3dDeconvolve_err
 
         fvol = out_3dvol
-        if t1_collection:
-            t1 = args.t1[index]
+
+        matching_t1 = [s for s in t1_collection if identifier in s]
+        matching_seg = [s for s in seg_collections if identifier in s]
+        matching_atlas = [s for s in atlas_collections if identifier in s]
+        if len(matching_t1)>0:
+            t1 = matching_t1[0]
             aff_t1_2_fmri = "{directory_reg}{fmri_id}.t1__2__{fmri_id}.fmri.despike.volreg.vol4.txt".format(fmri_id=identifier, directory_reg=directory_reg)
             aff_fmri_2_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt".format(fmri_id=identifier, directory_reg=directory_reg)
             aff_t1_in_fmri ="{directory_reg}{fmri_id}.t1__in__{fmri_id}.fmri.despike.volreg.vol4.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
             aff_fmri_in_t1 = "{directory_reg}{fmri_id}.fmri.despike.volreg.vol4__in__{fmri_id}.t1.nii.gz".format(fmri_id=identifier, directory_reg=directory_reg)
 
-        if seg_collections and atlas_collections:
-            seg = args.seg[index]
-            atlas = args.atlas[index]
+        if len(matching_seg)>0 and len(matching_atlas)>0:
+            seg = matching_seg[0]
+            atlas = matching_atlas[0]
             fmri_seg = "{directory}{fmri_id}.fmri.despike.volreg.vol4.seg.nii.gz".format(directory=directory, fmri_id=identifier)
             fmri_atlas = "{directory}{fmri_id}.fmri.despike.volreg.vol4.atlas.nii.gz".format(directory=directory, fmri_id=identifier)
 
@@ -135,25 +140,25 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
         ################################################### AFFINE REGISTRATIONS ################################################################
         #########################################################################################################################################
         #(i) fmri to t1
-        if t1_collection and atlas_collections and not isfile(aff_fmri_in_t1):
+        if t1 and atlas and not isfile(aff_fmri_in_t1):
             cmd = "reg_aladin -ref {ref} -rmask {rmask} -flo {flo} -fmask {fmask} -res {res} -aff {aff}".format(ref=t1, flo=fvol, res=aff_fmri_in_t1, aff=aff_fmri_2_t1, rmask=atlas, fmask=out_3dAutomask)
             print cmd
             call(cmd, shell=True)
 
         #(ii) t1 to fmri
-        if t1_collection and atlas_collections and not isfile(aff_t1_in_fmri):
+        if t1 and atlas and not isfile(aff_t1_in_fmri):
             cmd = "reg_aladin -ref {ref} -rmask {rmask} -flo {flo} -fmask {fmask} -res {res} -aff {aff}".format(ref=fvol, flo=t1, res=aff_t1_in_fmri, aff=aff_t1_2_fmri, fmask=atlas, rmask=out_3dAutomask)
             print cmd
             call(cmd, shell=True)
 
         # resample seg in fmri space
-        if seg_collections and not isfile(fmri_seg):
+        if seg and not isfile(fmri_seg):
             cmd = "reg_resample -ref {ref} -flo {flo} -psf -res {res} -trans {trans}".format(ref=fvol, flo=seg, res=fmri_seg, trans=aff_t1_2_fmri)
             print cmd
             call(cmd, shell=True)
 
         # resample atlas in fmri space
-        if atlas_collections and not isfile(fmri_atlas):
+        if atlas and not isfile(fmri_atlas):
             cmd = "reg_resample -ref {ref} -flo {flo} -inter 0 -res {res} -trans {trans}".format(ref=fvol, flo=atlas, res=fmri_atlas, trans=aff_t1_2_fmri)
             print cmd
             call(cmd, shell=True)
@@ -194,11 +199,15 @@ def relate_scans(fmri_collection, t1_collection, t1_template, t1_template_mask, 
     number_of_aff = 10
     if not t1_collection:
         return
+
+    id_start = t1_collection[0].rfind('/') + 1
+    id_end = t1_collection[0].find('.')
+    import pdb; pdb.set_trace()
     #(iii) create parameter file for group registration and start group registration
     if not isfile(''.join([directory_reg,'groupwise_niftyreg_params.sh'])):
         f = open(''.join([directory_reg,'groupwise_niftyreg_params.sh']),'w')
         f.write('#!/bin/sh\n')
-        f.write(''.join(['export IMG_INPUT=(`ls ', directory, '*.t1.nii*`)','\n']))
+        f.write(''.join(['export IMG_INPUT=(`ls ', directory, '*',t1_collection[0][id_end:],'*`)','\n']))
         f.write(''.join(['export TEMPLATE=',t1_template,'\n']))
         f.write(''.join(['export RES_FOLDER=',directory_reg,'\n']))
         f.write('export AFFINE_args=""\n')
@@ -224,12 +233,13 @@ def relate_scans(fmri_collection, t1_collection, t1_template, t1_template_mask, 
         id_end = fmri_scan.find('.')
         directory = fmri_scan[0:id_start]
         identifier = fmri_scan[id_start:id_end]
+        matching_t1 = [s for s in t1_collection if identifier in s]
         if not isfile('{directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.group.nii.gz'.format(fmri_id=identifier, directory=directory)):
-            cmd = 'reg_transform -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -ref2 {t1} -comp {directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt {directory_reg}/nrr_{number_of_nrr}/nrr_cpp_{fmri_id}.t1_it{number_of_nrr}.nii.gz {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr)
+            cmd = 'reg_transform -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -ref2 {t1} -comp {directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt {directory_reg}/nrr_{number_of_nrr}/nrr_cpp_{fmri_id}.t1_it{number_of_nrr}.nii.gz {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz'.format(fmri_id=identifier, t1=matching_t1[0], directory_reg=directory_reg, number_of_nrr=number_of_nrr)
             call(cmd, shell=True)
-            cmd = 'reg_resample -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.vol4.nii.gz -trans {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.vol4.group.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
+            cmd = 'reg_resample -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.vol4.nii.gz -trans {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.vol4.group.nii.gz'.format(fmri_id=identifier, directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
             call(cmd, shell=True)
-            cmd = 'reg_resample -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.nii.gz -trans {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.group.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
+            cmd = 'reg_resample -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.nii.gz -trans {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.group.nii.gz'.format(fmri_id=identifier, directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
             call(cmd, shell=True)
 
 
@@ -247,7 +257,7 @@ def relate_scans(fmri_collection, t1_collection, t1_template, t1_template_mask, 
 
 
 
-parser = argparse.ArgumentParser(description='fMRI preprocessing and analysis')
+parser = argparse.ArgumentParser(description='fMRI preprocessing pipeline. usage python pipeline.py -fmri /DIR/*.fMRI.nii.gz -t1 /DIR/*.t1.nii.gz -seg /DIR/*.t1.seg.nii.gz -atlas /DIR/*.t1.atlas.nii.gz -reg_dir /DIR/reg/')
 parser.add_argument('-fmri', metavar='fmri', type=str, nargs='+', required=True)
 parser.add_argument('-t1', metavar='t1', type=str, nargs='+', required=False)
 parser.add_argument('-seg', metavar='seg', type=str, nargs='+', required=False)
@@ -259,5 +269,16 @@ args = parser.parse_args()
 t1_template = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain.nii.gz', shell=True).rstrip()
 t1_template_mask = check_output('echo $FSLDIR/data/standard/MNI152_T1_1mm_brain_mask.nii.gz', shell=True).rstrip()
 
+print len(args.fmri), len(args.t1), len(args.seg), len(args.atlas)
+for index, fmri_scan in enumerate(args.fmri):
+    id_start = fmri_scan.rfind('/') + 1
+    id_end = fmri_scan.find('.')
+    identifier_fmri = fmri_scan[id_start:id_end]
+    identifier_anat = args.t1[index][id_start:id_end]
+    print identifier_fmri, identifier_anat
+
+answer = raw_input("Would you like to continue (yes or no): ")
+if not (answer.startswith( 'y' ) or answer.startswith( 'yes' )):
+    sys.exit() # stop programm if you would like to change input
 fmri(args.fmri, args.t1, args.seg, args.atlas, args.reg_dir,args.freq_band)
 relate_scans(args.fmri, args.t1, t1_template, t1_template_mask, args.reg_dir)

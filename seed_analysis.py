@@ -65,8 +65,6 @@ for index, fmri_scan in enumerate(args.fmri):
         print cmd
         call(cmd, shell=True)
 
-import pdb; pdb.set_trace()
-
 if args.groupA and args.groupB:
     f = open(args.groupA, "r")
     groupA = f.readlines()

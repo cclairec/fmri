@@ -8,16 +8,25 @@ import pdb
 
 class Image(object):
     """ Load image, mask it and hold the remaining voxels in the mask for future processing"""
-    def __init__(self,img_filename,mask_filename,noise_mask_filename=None,atlas_filename=None,segmentation_filename=None,atlas_thr=100,fwhm=0):
+    def __init__(self, img_filename, mask_filename, noise_mask_filename=None, atlas_filename=None, segmentation_filename=None, atlas_thr=100, fwhm=0, asl=False):
         #load imaging data
         self._img_filename = img_filename
         self._image_hd = nib.load(img_filename)
         if fwhm>0:
             self._image_hd = processing.smooth_image(self._image_hd, fwhm)
 
+        if asl:
+            volumes = self._image_hd.get_data().shape[3]
+            even = self._image_hd.get_data()[:,:,:,0:volumes:2]
+            odd = self._image_hd.get_data()[:,:,:,1:volumes:2]
+            self._image_volume = (even + odd)/2
+
+        else:
+            self._image_volume = self._image_hd.get_data()
+
+
         self._mask_hd = nib.load(mask_filename)
         self._mask_volume = self._mask_hd.get_data()
-        self._image_volume = self._image_hd.get_data()
         self._dims = self._image_volume.shape
         self._mask_v = self._mask_volume.reshape(self._dims[0]*self._dims[1]*self._dims[2])
         self._image_mat = self._image_volume.reshape(self._dims[0]*self._dims[1]*self._dims[2],self._dims[3])

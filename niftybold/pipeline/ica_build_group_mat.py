@@ -7,7 +7,7 @@ import numpy as np
 parser = argparse.ArgumentParser(description='build mat file for matrix decomposition')
 parser.add_argument('-groupimg', metavar='groupimg', type=str, nargs='+', required=True)
 parser.add_argument('-groupmask', metavar='groupmask', type=str, required=True)
-parser.add_argument('-fwhm', metavar='fwhm', type=float, default=5.0)
+parser.add_argument('-fwhm', metavar='fwhm', type=float, default=0.0)
 parser.add_argument('-mat', metavar='mat', type=str, default='ica_ready.mat')
 args = parser.parse_args()
 
