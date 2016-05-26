@@ -9,17 +9,22 @@ from subprocess import call,check_output
 from os.path import isfile
 import numpy as np
 import xlwt
+import os
 
 ################################################## NOTES ##################################
 # - use 3drefit -TR to set TR in header if not correctly set
 ###########################################################################################
 def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collections=None):
-    directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1],'/reg/'])
+    fmri_dir = os.path.abspath(fmri_collection[0])
+    print "fmri_dir: " + fmri_dir
+    directory_reg = ''.join([fmri_dir[0:fmri_dir.rfind('/') + 1],'reg/'])
+    print "directory_reg: " + directory_reg
     call("mkdir -p {directory_reg}".format(directory_reg=directory_reg), shell=True)
     for index, fmri_scan in enumerate(fmri_collection):
         id_start = fmri_scan.rfind('/') + 1
         id_end = fmri_scan.find('.')
-        directory = fmri_scan[0:id_start]
+        directory = os.path.abspath(fmri_scan[0:id_start])+'/'
+        print "directory: " + directory
         identifier = fmri_scan[id_start:id_end]
         # distortion correction if still required - deprecated
         VOLUMES = check_output('3dinfo -nv {scan}'.format(scan=fmri_scan), shell=True).rstrip()
@@ -151,40 +156,38 @@ def fmri(fmri_collection, t1_collection=None, seg_collections=None, atlas_collec
             print cmd
             call(cmd, shell=True)
             # build atlas based correlation matrices
+            background = [0]
             ventricles_csf = [1, 5, 12, 16, 50, 51]
             exterior_lesions = [43, 44, 54, 55, 64, 65, 70]
             cerebellum = [72, 73, 74] # exclude for Genfi DF1
-            atlas_exclusion_list = ventricles_csf+exterior_lesions+cerebellum
+            atlas_exclusion_list = background+ventricles_csf+exterior_lesions+cerebellum
             img = Image(img_filename=fmri_preprocessed,
                         mask_filename=fmri_atlas,
                         atlas_filename=fmri_atlas,
                         atlas_thr=1,
                         atlas_exclsion=atlas_exclusion_list)
-            sio.savemat("{prefix}.corr.mat".format(prefix=fmri_preprocessed[:-7]),{'CorrMatrix':img.atlas_corr})
-            sio.savemat("{prefix}.rois.mat".format(prefix=fmri_preprocessed[:-7]),{'ROISignals':img.image_mat_in_mask_normalised_atlas})
+            sio.savemat("{prefix}.corr.mat".format(prefix=fmri_preprocessed[:-7]), {'CorrMatrix': img.atlas_corr})
+            sio.savemat("{prefix}.rois.mat".format(prefix=fmri_preprocessed[:-7]), {'ROISignals': img.image_mat_in_mask_normalised_atlas})
             # adding xls file for brain areas kept, for graphVar use.
             book = xlwt.Workbook()
             sh = book.add_sheet("sheet1")
             n = 0
             for label, name in atlas.items():
-                if label in atlas_exclusion_list:
-                    sh.write(n, 0, 0)
-                else:
+                if label not in atlas_exclusion_list:
                     sh.write(n, 0, 1)
-
-                sh.write(n, 1, label)
-                sh.write(n, 2, name)
-                n = n+1
+                    sh.write(n, 1, label)
+                    sh.write(n, 2, name)
+                    n = n + 1
 
             book.save(fmri_preprocessed[:-7]+"BrainRegions.xls")
-
-            labels = np.unique(img.atlas_v)
-            labels = labels[labels>0]
-            sio.savemat("{prefix}.rois_label.mat".format(prefix=fmri_preprocessed[:-7]), {'ROILabels':labels})
+            labels = [i for i in np.unique(img.atlas_v) if i not in atlas_exclusion_list]
+            #labels = np.unique(img.atlas_v)
+            #labels = labels[labels>0]
+            sio.savemat("{prefix}.rois_label.mat".format(prefix=fmri_preprocessed[:-7]), {'ROILabels': labels})
 
 
 def relate_scans(fmri_collection, t1_collection, t1_template):
-    directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1], 'reg'])
+    directory_reg = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1], 'reg/'])
     directory = ''.join([fmri_collection[0][0:fmri_collection[0].rfind('/') + 1]])
     number_of_nrr = 10
     number_of_aff = 10
@@ -215,11 +218,11 @@ def relate_scans(fmri_collection, t1_collection, t1_template):
         directory = fmri_scan[0:id_start]
         identifier = fmri_scan[id_start:id_end]
         if not isfile('{directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.group.nii.gz'.format(fmri_id=identifier, directory=directory)):
-            cmd = 'reg_transform -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -ref2 {t1} -comp {directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt {directory_reg}/nrr_{number_of_nrr}/nrr_cpp_{fmri_id}.t1_it{number_of_nrr}.nii.gz {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr)
+            cmd = 'reg_transform -ref {directory_reg}average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -ref2 {t1} -comp {directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__{fmri_id}.t1.txt {directory_reg}nrr_{number_of_nrr}/nrr_cpp_{fmri_id}.t1_it{number_of_nrr}.nii.gz {directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr)
             call(cmd, shell=True)
-            cmd = 'reg_resample -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.vol4.nii.gz -trans {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.vol4.group.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
+            cmd = 'reg_resample -ref {directory_reg}average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.vol4.nii.gz -trans {directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.vol4.group.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
             call(cmd, shell=True)
-            cmd = 'reg_resample -ref {directory_reg}/average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.nii.gz -trans {directory_reg}/{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.group.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
+            cmd = 'reg_resample -ref {directory_reg}average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -flo {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.nii.gz -trans {directory_reg}{fmri_id}.fmri.despike.volreg.vol4__2__average_nonrigid_it_{number_of_nrr}_fmri.nii.gz -res {directory}{fmri_id}.fmri.despike.volreg.deconvolve.err.group.nii.gz'.format(fmri_id=identifier, t1=t1_collection[index], directory_reg=directory_reg, number_of_nrr=number_of_nrr, directory=directory)
             call(cmd, shell=True)
 
 

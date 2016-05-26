@@ -10,6 +10,7 @@ class Image(object):
     """ Load image, mask it and hold the remaining voxels in the mask for future processing"""
     def __init__(self,img_filename,mask_filename,noise_mask_filename=None,atlas_filename=None,segmentation_filename=None,atlas_thr=100,atlas_exclsion=None,fwhm=0):
         #load imaging data
+        print atlas_exclsion
         self._img_filename = img_filename
         self._image_hd = nib.load(img_filename)
   #      if fwhm>0:
@@ -45,18 +46,17 @@ class Image(object):
             self._atlas_v = self._atlas_volume.reshape(self._dims[0]*self._dims[1]*self._dims[2])
             self._atlas_values_unique = np.unique(self._atlas_v)
             self._atlas_thr = atlas_thr
-            self._atlas_values_unique=self._atlas_values_unique[self._atlas_values_unique >= self._atlas_thr]
+            self._atlas_values_unique = self._atlas_values_unique[self._atlas_values_unique >= self._atlas_thr]
             self._atlas_indices_dict = {}
             self._atlas_v_reduced = self._mask_v[self._mask_v>0]
+            self._atlas_values_unique = [item for item in self._atlas_values_unique if item not in atlas_exclsion]
             self._image_mat_in_mask_normalised_atlas = np.zeros((len(self._atlas_values_unique), self._dims[3]))
             self._image_mat_in_mask_atlas = np.zeros((len(self._atlas_values_unique), self._dims[3]))
             # compute atlas-wise scan
-            [item for item in self._atlas_values_unique if item not in atlas_exclsion]
             for index, mask_val in enumerate(self._atlas_values_unique):
-
+                print mask_val, index
                 self._atlas_indices_dict[mask_val] = indices(self._atlas_v_reduced, lambda x: x == mask_val)
                 self._image_mat_in_mask_atlas[index,:] = self._image_mat_in_mask[self._atlas_indices_dict[mask_val],:].mean(axis=0)
-
             self._image_mat_in_mask_normalised_atlas=self._image_mat_in_mask_atlas-self._image_mat_in_mask_atlas.mean(axis=1)[:,None]
             self._image_mat_in_mask_normalised_atlas=self._image_mat_in_mask_normalised_atlas/self._image_mat_in_mask_normalised_atlas.std(axis=1)[:,None]
             where_are_NaNs = np.isnan(self._image_mat_in_mask_normalised_atlas)
